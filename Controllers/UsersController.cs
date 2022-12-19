@@ -1,115 +1,131 @@
+using AutoMapper;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Entities;
 using WebAPI.Models;
+using WebAPI.Services;
 
 [ApiController]
 [Route("/users")]
 public class UsersController : ControllerBase
 {
-    [HttpGet]
-    public ActionResult<IEnumerable<UsersDto>> getUsers() {
-        var users = UsersData.UserData;
+    private readonly ILogger<UsersController> logger;
+    private readonly IUsersService userRepo;
 
-        return Ok(users);
+    private readonly IMapper mapper;
+    public UsersController(
+        ILogger<UsersController> logger,
+        IUsersService userRepo,
+        IMapper mapper
+    )
+    {
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        this.userRepo = userRepo ?? throw new ArgumentNullException(nameof(logger));
+        this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+    }
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<UsersDto>>> getUsers() {
+        var result = await userRepo.GetUsers();
+
+        return Ok(mapper.Map<IEnumerable<UsersDto>>(result));
     }
 
     [HttpGet("{userId}", Name = "GetUser")]
-    public ActionResult<UsersDto> getUser(
+    public async Task<ActionResult<UsersDto>> getUser(
         int userId
     ) {
-        var user = UsersData.UserData.FirstOrDefault(user => user.Id == userId);
+        var user = await userRepo.GetUser(userId);
 
         if(user == null){
             return NotFound();
         }
 
-        return Ok(user);
+
+        return Ok(mapper.Map<UsersDto>(user));
     }
     
     [HttpPost]
-    public ActionResult<UsersDto> createUser(
+    public async Task<ActionResult<UsersDto>> createUser(
         CreateUserDto userDto
     ) {
+        var userMapped = mapper.Map<Users>(userDto);
         
-        var newUser = new UsersDto() {
-            Id = ++UsersData.UsersCount,
-            Name = userDto.Name,
-            Age = userDto.Age
-        };
+        await userRepo.CreateUser(userMapped);
 
-        UsersData.UserData.Add(newUser);
-        
+        var result = mapper.Map<UsersDto>(userMapped);
+
         return CreatedAtRoute(
             "GetUser",
             new {
-                userId=newUser.Id
+                userId =result.Id
             },
-            newUser
+            result
         );
     }
 
     [HttpPut("{userId}")]
-    public ActionResult<UsersDto> updateUser(
+    public async Task<ActionResult<UsersDto>> updateUser(
         int userId,
         UpdateUserDto userDto
     ) {
-        var user = UsersData.UserData.FirstOrDefault(user => user.Id == userId);
+        var user = await userRepo.GetUser(userId);
 
-        if(user == null){
+        if(user == null) {
             return NotFound();
         }
 
-        user.Name = userDto.Name;
-        user.Age = userDto.Age;
+        var result = mapper.Map(userDto, user);
 
+        await userRepo.SaveChangesAsync();
 
-
-        return Ok(user);
+        return Ok(mapper.Map<UpdateUserDto>(result));
     }
 
     [HttpPatch("{userId}")]
-    public ActionResult<UsersDto> patchUser(
+    public async Task<ActionResult<UsersDto>> patchUser(
         int userId,
         JsonPatchDocument<UpdateUserDto> userDto
     ) {
-        var user = UsersData.UserData.FirstOrDefault(user => user.Id == userId);
+       var user = await userRepo.GetUser(userId);
+       
+       if(user == null) {
+        return NotFound();
+       }
 
-        if(user == null){
-            return NotFound();
-        }
+       var userToPatch = mapper.Map<UpdateUserDto>(user);
+       
+       userDto.ApplyTo(userToPatch, ModelState);
 
-        var updatedUser = new UpdateUserDto() {
-            Name = user.Name,
-            Age = user.Age
-        };
-
-        userDto.ApplyTo(updatedUser, ModelState);
-        
-        if(!ModelState.IsValid) {
+       if(!ModelState.IsValid){
             return BadRequest(ModelState);
-        }
+       }
 
-        if(!TryValidateModel(userDto)) {
+       if(!TryValidateModel(userToPatch)){
             return BadRequest(ModelState);
-        }
+       }
 
-        user.Name = updatedUser.Name;
-        user.Age = updatedUser.Age;
+       mapper.Map(userToPatch, user);
+       await userRepo.SaveChangesAsync();
 
-        return Ok(updatedUser);
+       return Ok(userToPatch);
     }
     
     [HttpDelete("{userId}")]
-    public ActionResult<UsersDto> deleteUser(
+    public async Task<ActionResult<UsersDto>> deleteUser(
         int userId
     ) {
-        var user = UsersData.UserData.FirstOrDefault(user => user.Id == userId);
-        if(user == null){
-            return NotFound();
+        var user = await userRepo.GetUser(userId);
+       
+       if(user == null) {
+        return NotFound();
+       }
+
+        await userRepo.Deleteuser(user);
+
+       return Ok((new {
+        Deleted = new {
+            User = mapper.Map<UsersDto>(user)
         }
-
-        UsersData.UserData.Remove(user);
-
-        return Ok(user);
+       }));
     }
 }
