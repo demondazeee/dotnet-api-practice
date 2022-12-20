@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoMapper;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
@@ -24,15 +25,22 @@ public class UsersController : ControllerBase
         this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<UsersDto>>> getUsers() {
-        var result = await userRepo.GetUsers();
+    public async Task<ActionResult<IEnumerable<UsersDto>>> getUsers(
+        string? name, 
+        string? search,
+        int pageSize = 10,
+        int pageNumber = 1
+    ) {
+        var (result, paginationMeta) = await userRepo.GetUsers(name, search, pageSize, pageNumber);
+
+        Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(paginationMeta));
 
         return Ok(mapper.Map<IEnumerable<UsersDto>>(result));
     }
 
     [HttpGet("{userId}", Name = "GetUser")]
     public async Task<ActionResult<UsersDto>> getUser(
-        int userId
+        Guid userId
     ) {
         var user = await userRepo.GetUser(userId);
 
@@ -65,7 +73,7 @@ public class UsersController : ControllerBase
 
     [HttpPut("{userId}")]
     public async Task<ActionResult<UsersDto>> updateUser(
-        int userId,
+        Guid userId,
         UpdateUserDto userDto
     ) {
         var user = await userRepo.GetUser(userId);
@@ -83,7 +91,7 @@ public class UsersController : ControllerBase
 
     [HttpPatch("{userId}")]
     public async Task<ActionResult<UsersDto>> patchUser(
-        int userId,
+        Guid userId,
         JsonPatchDocument<UpdateUserDto> userDto
     ) {
        var user = await userRepo.GetUser(userId);
@@ -112,7 +120,7 @@ public class UsersController : ControllerBase
     
     [HttpDelete("{userId}")]
     public async Task<ActionResult<UsersDto>> deleteUser(
-        int userId
+        Guid userId
     ) {
         var user = await userRepo.GetUser(userId);
        

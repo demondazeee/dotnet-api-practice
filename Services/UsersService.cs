@@ -24,7 +24,7 @@ public class UsersService : IUsersService
         await this.SaveChangesAsync();
     }
 
-    public async Task<Users?> GetUser(int userId)
+    public async Task<Users?> GetUser(Guid userId)
     {
         return await context.Users.Where(c => c.Id == userId).FirstOrDefaultAsync();
     }
@@ -32,6 +32,30 @@ public class UsersService : IUsersService
     public async Task<IEnumerable<Users>> GetUsers()
     {
         return await context.Users.ToListAsync();
+    }
+
+    public async Task<(IEnumerable<Users>, PaginationMetadata)> GetUsers(string? name, string? search, int pageSize, int pageNumber)
+    {
+        var collection = context.Users as IQueryable<Users>;
+        if(!string.IsNullOrWhiteSpace(name)){
+            name = name.Trim();
+            collection.Where(u => u.Name == name);
+        }
+
+        if(!string.IsNullOrWhiteSpace(search)){
+            search = search.Trim();
+            collection.Where(u => u.Name.Contains(search));
+        }
+        var totalCount = await collection.CountAsync();
+
+        var paginationMeta = new PaginationMetadata(totalCount, pageSize, pageNumber);
+
+        var results = await collection
+        .Skip(pageSize * (pageNumber - 1))
+        .Take(pageSize)
+        .ToListAsync();
+
+        return (results, paginationMeta);
     }
 
     public async Task SaveChangesAsync()

@@ -6,9 +6,15 @@ public interface IUsersService {
 
     Task CreateUser(Users users);
 
-    Task<Users?> GetUser(int userId);
+    Task<Users?> GetUser(Guid userId);
     
     Task<IEnumerable<Users>> GetUsers();
+    Task<(IEnumerable<Users>, PaginationMetadata)> GetUsers(
+        string? name,
+        string? search,
+        int pageSize,
+        int pageNumber
+    );
 
     Task Deleteuser(Users user);
 }
